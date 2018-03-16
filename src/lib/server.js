@@ -33,3 +33,53 @@ app.all('*', (request,response) => {
 });
 
 app.use(require('./middleware/error-middleware'));
+
+let isServerOn = false;
+let httpServer = null;
+
+server.start = () => {
+  fs.pathExists('logs/')
+    .then(exists => {
+      if(!exists) {
+        fs.mkdir('logs/');
+      }
+    });
+
+  return new Promise((resolve, reject) => {
+    
+    if(isServerOn) {
+      log('error', '__SERVER_ERROR__ Server is already on');
+      return reject(new Error('__SERVER_ERROR__ Server is already on'));
+    }
+    httpServer = app.listen(process.env.PORT, () => {
+      isServerOn = true;
+      log('verbose', `Server is listening on port: ${process.env.PORT}`);
+      return resolve();
+    });
+  })
+    .then(() => {
+      mongoose.connect(process.env.MONGODB_URI);
+    });
+};
+
+server.stop = () => {
+  return new Promise((resolve, reject) => {
+    if(!isServerOn) {
+      log('error', '__SERVER_ERROR__ Server is already off');
+      return reject(new Error('__SERVER_ERROR__ Server is already off'));
+    }
+    if (!httpServer) {
+      log('error', '__SERVER_ERROR__ There is no server to close');
+      return reject(new Error('__SERVER_ERROR__ There is no server to close'));
+    }
+    httpServer.close(() => {
+      isServerOn = false;
+      httpServer = null;
+      log('info', `Server is shutting down`);
+      return resolve();
+    });
+  })
+    .then(() => {
+      mongoose.disconnect();
+    });
+};
